@@ -4,6 +4,7 @@ import { useState } from 'react'
 // import viteLogo from './assets/vite.svg'
 // import './App.css'
 import {Routes, Route} from "react-router-dom";
+import { Analytics } from '@vercel/analytics/react';
 import Signup from './Pages/Signup';
 import Login from './Pages/Login';
 import LandingPage from './Pages/LandingPage';
@@ -35,6 +36,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
 
         </Routes>
+        <Analytics />
     </>
   )
 }
