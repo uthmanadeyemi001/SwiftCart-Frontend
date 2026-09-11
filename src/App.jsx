@@ -11,7 +11,7 @@ import Admin from './Pages/Admin';
 import Home from './Pages/Home';
 import Cart from './Pages/Cart';
 import Search from './Pages/Search';
-import OrderSuccess from './Pages/Ordersuccess';
+import OrderSuccess from './Pages/OrderSuccess';
 import AdminOrders from './Pages/AdminOrders';
 import Profile from './Pages/Profile';
 
