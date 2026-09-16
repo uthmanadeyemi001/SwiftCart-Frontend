@@ -10,7 +10,6 @@ export default function OrderSuccess() {
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    // Fallback to check both Paystack reference keys
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     
     if (!reference) {
@@ -38,7 +37,7 @@ export default function OrderSuccess() {
   return (
     <div className={`order-success-container ${isSuccess === false ? 'order-error' : ''} ${isSuccess === null ? 'order-loading' : ''}`}>
       <div className="order-success-emoji">
-        {isSuccess ? '🎉' : isSuccess === false ? '❌' : <package/>}
+        {isSuccess ? '🎉' : isSuccess === false ? '❌' : '⏳'}
       </div>
       <h1 className="order-success-heading">
         {isSuccess ? 'Order Placed Successfully!' : isSuccess === false ? 'Order Failed' : 'Processing Payment'}
