@@ -73,7 +73,7 @@ export default function AdminOrders() {
   return (
     <div style={{ maxWidth: '1000px', margin: '40px auto', padding: '0 20px', fontFamily: 'Segoe UI, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <Link to="/home" style={{ textDecoration: 'none', color: '#10B981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Link to="/admin" style={{ textDecoration: 'none', color: '#10B981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ArrowLeft size={16} /> Back to Store
         </Link>
         <span style={{ background: '#0F172A', color: '#FFF', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
