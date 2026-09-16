@@ -4,8 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft } from 'lucide-react';
 import '../Styles/Cart.css';
 
-// const api = axios.create({ baseURL: 'http://localhost:9000' });
-
 export default function Cart() {
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,8 +26,14 @@ export default function Cart() {
       const response = await api.get('/cart', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setCartItems(response.data.cart?.items || []);
+      console.log('Cart API Response:', response.data);
+      
+      // Safely catch items from any backend response shape
+      const rawData = response.data;
+      const items = rawData.cart?.items || rawData.items || rawData.cart || (Array.isArray(rawData) ? rawData : []);
+      setCartItems(items);
     } catch (err) {
+      console.error('Fetch cart error:', err);
       setError(err.response?.data?.message || 'Failed to load cart.');
     } finally {
       setLoading(false);
@@ -49,11 +53,13 @@ export default function Cart() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCartItems(prev =>
-        prev.map(item =>
-          item.productId?._id === productId
+        prev.map(item => {
+          const productField = item.productId || item.product;
+          const currentId = typeof productField === 'object' ? (productField?._id || productField?.id) : productField;
+          return currentId === productId
             ? { ...item, quantity: newQuantity }
-            : item
-        )
+            : item;
+        })
       );
       setError('');
     } catch (err) {
@@ -70,7 +76,11 @@ export default function Cart() {
       await api.delete(`/cart/${productId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setCartItems(prev => prev.filter(item => item.productId?._id !== productId));
+      setCartItems(prev => prev.filter(item => {
+        const productField = item.productId || item.product;
+        const currentId = typeof productField === 'object' ? (productField?._id || productField?.id) : productField;
+        return currentId !== productId;
+      }));
       setError('');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to remove item from cart.');
@@ -79,7 +89,9 @@ export default function Cart() {
 
   const calculateSubtotal = () => {
     return cartItems.reduce((total, item) => {
-      const price = item.productId?.price || 0;
+      const productField = item.productId || item.product;
+      const product = typeof productField === 'object' ? productField : null;
+      const price = product?.price || item.price || 0;
       return total + price * item.quantity;
     }, 0);
   };
@@ -134,31 +146,34 @@ export default function Cart() {
       ) : (
         <div className="cart-layout">
           <div className="cart-items-list">
-            {cartItems.map((item) => {
-              const product = item.productId;
-              if (!product || !product._id) return null;
+            {cartItems.map((item, index) => {
+              const productField = item.productId || item.product;
+              const product = typeof productField === 'object' ? productField : null;
+              const productId = product?._id || product?.id || productField;
+              if (!productId) return null;
+
               return (
-                <article className="cart-item-row" key={product._id}>
-                  {product.imageUrl && <img src={product.imageUrl} alt={product.title} />}
+                <article className="cart-item-row" key={productId || index}>
+                  {product?.imageUrl && <img src={product.imageUrl} alt={product?.title || 'Product'} />}
                   <div className="cart-item-details">
-                    <h3>{product.title}</h3>
+                    <h3>{product?.title || item.title || 'Product Item'}</h3>
                     <p className="item-unit-price">
-                      ₦{Number(product.price).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})} each
+                      ₦{Number(product?.price || item.price || 0).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})} each
                     </p>
                   </div>
 
                   <div className="cart-item-quantity-controls">
                     <button 
-                      onClick={() => handleQuantityChange(product._id, item.quantity - 1)}
-                      disabled={updatingId === product._id}
+                      onClick={() => handleQuantityChange(productId, item.quantity - 1)}
+                      disabled={updatingId === productId}
                       aria-label="Decrease quantity"
                     >
                       <Minus size={14} />
                     </button>
                     <span>{item.quantity}</span>
                     <button 
-                      onClick={() => handleQuantityChange(product._id, item.quantity + 1)}
-                      disabled={updatingId === product._id}
+                      onClick={() => handleQuantityChange(productId, item.quantity + 1)}
+                      disabled={updatingId === productId}
                       aria-label="Increase quantity"
                     >
                       <Plus size={14} />
@@ -167,11 +182,11 @@ export default function Cart() {
 
                   <div className="cart-item-subtotal">
                     <strong>
-                      ₦{(product.price * item.quantity).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      ₦{((product?.price || item.price || 0) * item.quantity).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </strong>
                     <button 
                       className="remove-item-btn" 
-                      onClick={() => handleRemoveItem(product._id)}
+                      onClick={() => handleRemoveItem(productId)}
                       aria-label="Remove item"
                     >
                       <Trash2 size={16} />

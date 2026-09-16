@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { ShoppingCart, Search, Plus, Minus, Home as HomeIcon, User, Package, Check } from 'lucide-react';
 import '../Styles/Home.css';
@@ -13,15 +13,33 @@ export default function SearchPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState({});
   const [toastMessage, setToastMessage] = useState('');
+  const navigate = useNavigate();
+
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchProductsAndCart = async () => {
       try {
         const response = await api.get('/products');
         const productData = Array.isArray(response.data) 
           ? response.data 
           : response.data.products || response.data.data || [];
         setProducts(productData);
+
+        if (token) {
+          const cartRes = await api.get('/cart', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const cartItems = cartRes.data.cart?.items || [];
+          const cartMap = {};
+          cartItems.forEach(item => {
+            const prodId = item.productId?._id || item.productId?.id || item.productId;
+            if (prodId) {
+              cartMap[prodId] = item.quantity;
+            }
+          });
+          setCart(cartMap);
+        }
       } catch (err) {
         console.error('Error fetching products:', err);
         setError('Failed to load products from the server. Please try again later.');
@@ -30,8 +48,8 @@ export default function SearchPage() {
       }
     };
 
-    fetchProducts();
-  }, []);
+    fetchProductsAndCart();
+  }, [token]);
 
   const categories = ['All', ...new Set(products.map((p) => p.category).filter(Boolean))];
 
@@ -42,28 +60,78 @@ export default function SearchPage() {
     }, 2500);
   };
 
-  const handleUpdateQuantity = (productId, delta, productName) => {
-    setCart((prev) => {
-      const currentQty = prev[productId] || 0;
-      const newQty = currentQty + delta;
+  const handleUpdateQuantity = async (productId, delta, productName) => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
 
+    const currentQty = cart[productId] || 0;
+    const newQty = currentQty + delta;
+
+    try {
       if (newQty <= 0) {
-        const updated = { ...prev };
-        delete updated[productId];
+        await api.delete(`/cart/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCart((prev) => {
+          const updated = { ...prev };
+          delete updated[productId];
+          return updated;
+        });
         showToast(`Removed ${productName} from cart`);
-        return updated;
+      } else {
+        await api.put(
+          '/cart',
+          { productId, quantity: newQty },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setCart((prev) => ({ ...prev, [productId]: newQty }));
+        showToast(`Updated ${productName} quantity to ${newQty}`);
       }
-
-      showToast(`Updated ${productName} quantity to ${newQty}`);
-      return { ...prev, [productId]: newQty };
-    });
+    } catch (err) {
+      showToast('Failed to update cart');
+    }
   };
+const handleAddToCart = async (productId, productName) => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    
+    // Ensure we have a valid string ID
+    const cleanId = typeof productId === 'object' ? (productId._id || productId.id) : productId;
+    if (!cleanId) {
+      showToast('Error: Invalid product ID');
+      return;
+    }
 
-  const handleAddToCart = (productId, productName) => {
-    setCart((prev) => ({ ...prev, [productId]: 1 }));
-    showToast(`Added ${productName} to cart`);
+    try {
+      // Backend expects a POST request to add items to the cart
+      const response = await api.post(
+        '/cart',
+        { productId: cleanId, quantity: 1 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Parse the updated cart response from the server and sync state immediately
+      const cartItems = response.data.cart?.items || [];
+      const cartMap = {};
+      cartItems.forEach(item => {
+        const prodId = item.productId?._id || item.productId?.id || item.productId;
+        if (prodId) {
+          cartMap[prodId] = item.quantity;
+        }
+      });
+      
+      setCart(cartMap);
+      showToast(`Added ${productName} to cart`);
+    } catch (err) {
+      console.error('Add to cart error details:', err.response?.data);
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || 'Failed to add to cart';
+      showToast(serverMsg);
+    }
   };
-
   const filteredProducts = products.filter((p) => {
     const matchesSearch = p.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           p.description?.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -158,7 +226,7 @@ export default function SearchPage() {
         ) : (
           <div className="product-grid">
             {filteredProducts.map((product) => {
-              const productId = product.id || product._id;
+              const productId = product._id || product.id;
               const qty = cart[productId] || 0;
 
               return (

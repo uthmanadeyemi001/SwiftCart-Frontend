@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { Link, useNavigate } from 'react-router-dom';
 
-const api = axios.create({ baseURL: 'http://localhost:9000' });
-
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);

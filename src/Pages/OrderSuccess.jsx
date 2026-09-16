@@ -38,7 +38,7 @@ export default function OrderSuccess() {
   return (
     <div className={`order-success-container ${isSuccess === false ? 'order-error' : ''} ${isSuccess === null ? 'order-loading' : ''}`}>
       <div className="order-success-emoji">
-        {isSuccess ? '🎉' : isSuccess === false ? '❌' : '⏳'}
+        {isSuccess ? '🎉' : isSuccess === false ? '❌' : <package/>}
       </div>
       <h1 className="order-success-heading">
         {isSuccess ? 'Order Placed Successfully!' : isSuccess === false ? 'Order Failed' : 'Processing Payment'}

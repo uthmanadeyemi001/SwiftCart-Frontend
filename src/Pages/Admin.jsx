@@ -145,6 +145,10 @@ export default function Admin() {
   const outOfStockCount = products.filter((p) => (Number(p.stock) || 0) <= OUT_OF_STOCK_THRESHOLD).length;
   const uniqueCategories = [...new Set(products.map(p => p.category))].length;
 
+
+
+  
+
   return (
     <main className="admin-page">
       <header className="admin-header">

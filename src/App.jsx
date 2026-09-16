@@ -11,10 +11,10 @@ import Admin from './Pages/Admin';
 import Home from './Pages/Home';
 import Cart from './Pages/Cart';
 import Search from './Pages/Search';
-import OrderSuccess from './Pages/OrderSuccess';
 import AdminOrders from './Pages/AdminOrders';
 import Profile from './Pages/Profile';
-
+import OrderSuccess from './Pages/Ordersuccess';
+//why is col 16 ln16 have error 
 function App() {
 
 
@@ -30,7 +30,6 @@ function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/search" element={<Search />} />
           <Route path="/order-success" element={<OrderSuccess />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/admin/orders" element={<AdminOrders />} />
           <Route path="/profile" element={<Profile />} />
 

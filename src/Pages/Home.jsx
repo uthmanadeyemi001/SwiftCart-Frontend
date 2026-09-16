@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { ShoppingCart, Search, Plus, Minus, Home as HomeIcon, User, Package, Check } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Home as HomeIcon, User, Package, Check, X } from 'lucide-react';
 import '../Styles/Home.css';
 import SwiftPic from '../assets/bgremovedswiftcart.png';
 
@@ -13,76 +13,124 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState({});
   const [toastMessage, setToastMessage] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const navigate = useNavigate();
   
   const token = localStorage.getItem('token');
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get('/products');
-        const productData = Array.isArray(response.data) 
-          ? response.data 
-          : response.data.products || response.data.data || [];
+        const prodRes = await api.get('/products');
+        const productData = Array.isArray(prodRes.data) ? prodRes.data : prodRes.data.products || [];
         setProducts(productData);
+
+        if (token) {
+          const cartRes = await api.get('/cart', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const cartItems = cartRes.data.cart?.items || [];
+          const cartMap = {};
+          cartItems.forEach(item => {
+            // Bulletproof ID resolution
+            const prodId = item.productId?._id || item.productId?.id || item.productId;
+            if (prodId) {
+              cartMap[prodId] = item.quantity;
+            }
+          });
+          setCart(cartMap);
+        }
       } catch (err) {
-        console.error('Error fetching products:', err);
-        setError('Failed to load products from the server. Please try again later.');
+        console.error('Error loading home data:', err);
+        setError('Failed to load store catalog.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProducts();
-  }, []);
+    fetchData();
+  }, [token]);
 
   const categories = ['All', ...new Set(products.map((p) => p.category).filter(Boolean))];
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage('');
-    }, 2500);
+    setTimeout(() => setToastMessage(''), 2500);
   };
 
-  const handleUpdateQuantity = (productId, delta, productName) => {
-    setCart((prev) => {
-      const currentQty = prev[productId] || 0;
-      const newQty = currentQty + delta;
+  const handleUpdateQuantity = async (productId, delta, productName) => {
+    if (!token) {
+      navigate('/login');
+      return;
+    }
 
+    const currentQty = cart[productId] || 0;
+    const newQty = currentQty + delta;
+
+    try {
       if (newQty <= 0) {
-        const updated = { ...prev };
-        delete updated[productId];
+        await api.delete(`/cart/${productId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCart((prev) => {
+          const updated = { ...prev };
+          delete updated[productId];
+          return updated;
+        });
         showToast(`Removed ${productName} from cart`);
-        return updated;
+      } else {
+        await api.put(
+          '/cart',
+          { productId, quantity: newQty },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setCart((prev) => ({ ...prev, [productId]: newQty }));
+        showToast(`Updated ${productName} quantity to ${newQty}`);
       }
-
-      showToast(`Updated ${productName} quantity to ${newQty}`);
-      return { ...prev, [productId]: newQty };
-    });
+    } catch (err) {
+      showToast('Failed to update cart');
+    }
   };
-
-  const handleAddToCart = async (productId, productName) => {
+const handleAddToCart = async (productId, productName) => {
     if (!token) {
       navigate('/login');
       return;
     }
     
+    // Ensure we have a valid string ID
+    const cleanId = typeof productId === 'object' ? (productId._id || productId.id) : productId;
+    if (!cleanId) {
+      showToast('Error: Invalid product ID');
+      return;
+    }
+
     try {
-      await api.post(
+      // Backend expects a POST request to add items to the cart
+      const response = await api.post(
         '/cart',
-        { productId, quantity: 1 },
+        { productId: cleanId, quantity: 1 },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setCart((prev) => ({ ...prev, [productId]: 1 }));
+      
+      // Parse the updated cart response from the server and sync state immediately
+      const cartItems = response.data.cart?.items || [];
+      const cartMap = {};
+      cartItems.forEach(item => {
+        const prodId = item.productId?._id || item.productId?.id || item.productId;
+        if (prodId) {
+          cartMap[prodId] = item.quantity;
+        }
+      });
+      
+      setCart(cartMap);
       showToast(`Added ${productName} to cart`);
     } catch (err) {
-      showToast(`Failed to add ${productName} to cart`);
-      console.error('Add to cart error:', err);
+      console.error('Add to cart error details:', err.response?.data);
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || 'Failed to add to cart';
+      showToast(serverMsg);
     }
   };
-
-  const filteredProducts = products.filter((p) => {
+    const filteredProducts = products.filter((p) => {
     const matchesSearch = p.title?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
     const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -148,23 +196,17 @@ export default function Home() {
           <p>Explore high-quality items delivered instantly to your door.</p>
         </div>
 
-        {error && (
-          <div className="error-catalog">
-            <p>{error}</p>
-          </div>
-        )}
+        {error && <div className="error-catalog"><p>{error}</p></div>}
 
         {loading ? (
           <div className="product-grid">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div key={n} className="product-card skeleton-card">
                 <div className="skeleton-image shimmer" />
-                <div className="skeleton-line shimmer short" />
-                <div className="skeleton-line shimmer long" />
               </div>
             ))}
           </div>
-        ) : !error && filteredProducts.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="empty-catalog">
             <Package size={48} />
             <h3>No products found</h3>
@@ -173,17 +215,17 @@ export default function Home() {
         ) : (
           <div className="product-grid">
             {filteredProducts.map((product) => {
-              const productId = product.id || product._id;
+              const productId = product._id || product.id;
               const qty = cart[productId] || 0;
 
               return (
                 <div key={productId} className="product-card">
-                  <div className="product-image-wrap">
+                  <div className="product-image-wrap" onClick={() => setSelectedProduct(product)} style={{ cursor: 'pointer' }}>
                     <img src={product.imageUrl || product.image} alt={product.title} loading="lazy" />
                     {product.category && <span className="product-category-tag">{product.category}</span>}
                   </div>
                   <div className="product-info">
-                    <h4>{product.title}</h4>
+                    <h4 onClick={() => setSelectedProduct(product)} style={{ cursor: 'pointer' }}>{product.title}</h4>
                     <div className="product-price">₦{Number(product.price).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     
                     {qty === 0 ? (
@@ -198,7 +240,6 @@ export default function Home() {
                         <button
                           className="stepper-btn"
                           onClick={() => handleUpdateQuantity(productId, -1, product.title)}
-                          aria-label="Decrease quantity"
                         >
                           <Minus size={16} />
                         </button>
@@ -206,7 +247,6 @@ export default function Home() {
                         <button
                           className="stepper-btn"
                           onClick={() => handleUpdateQuantity(productId, 1, product.title)}
-                          aria-label="Increase quantity"
                         >
                           <Plus size={16} />
                         </button>
@@ -220,24 +260,35 @@ export default function Home() {
         )}
       </main>
 
+      {selectedProduct && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', maxWidth: '500px', width: '100%', padding: '25px', position: 'relative', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+            <button onClick={() => setSelectedProduct(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+            {selectedProduct.imageUrl && <img src={selectedProduct.imageUrl} alt={selectedProduct.title} style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: '8px', marginBottom: '15px' }} />}
+            <span style={{ fontSize: '12px', background: '#F1F5F9', padding: '4px 8px', borderRadius: '6px', fontWeight: '600' }}>{selectedProduct.category}</span>
+            <h2 style={{ margin: '10px 0', fontSize: '20px', color: '#0F172A' }}>{selectedProduct.title}</h2>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10B981', marginBottom: '15px' }}>₦{Number(selectedProduct.price).toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <p style={{ color: '#475569', fontSize: '14px', lineHeight: '1.5', maxHeight: '150px', overflowY: 'auto' }}>{selectedProduct.description}</p>
+            <button 
+              onClick={() => {
+                handleAddToCart(selectedProduct._id || selectedProduct.id, selectedProduct.title);
+                setSelectedProduct(null);
+              }}
+              style={{ width: '100%', marginTop: '20px', background: '#10B981', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      )}
+
       <nav className="mobile-bottom-nav">
-        <Link to="/" className="mobile-nav-item active">
-          <HomeIcon size={20} />
-          <span>Home</span>
-        </Link>
-        <Link to="/search" className="mobile-nav-item">
-          <Search size={20} />
-          <span>Search</span>
-        </Link>
-        <Link to="/cart" className="mobile-nav-item cart-mobile-anchor">
-          <ShoppingCart size={20} />
-          <span>Cart</span>
-          {totalCartItems > 0 && <span className="mobile-cart-badge">{totalCartItems}</span>}
-        </Link>
-        <Link to="/profile" className="mobile-nav-item">
-          <User size={20} />
-          <span>Profile</span>
-        </Link>
+        <Link to="/home" className="mobile-nav-item active"><HomeIcon size={20} /><span>Home</span></Link>
+        <Link to="/search" className="mobile-nav-item"><Search size={20} /><span>Search</span></Link>
+        <Link to="/cart" className="mobile-nav-item cart-mobile-anchor"><ShoppingCart size={20} /><span>Cart</span>{totalCartItems > 0 && <span className="mobile-cart-badge">{totalCartItems}</span>}</Link>
+        <Link to="/profile" className="mobile-nav-item"><User size={20} /><span>Profile</span></Link>
       </nav>
     </div>
   );

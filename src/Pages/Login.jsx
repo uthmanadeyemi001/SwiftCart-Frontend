@@ -22,7 +22,7 @@ export default function Login() {
       const response = await api.post('/users/login', formData);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate(response.data.user?.role === 'admin' ? '/admin' : '/Home');
+      navigate(response.data.user?.role === 'admin' ? '/admin' : '/home');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password');
     }
